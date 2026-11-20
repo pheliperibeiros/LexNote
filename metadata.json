@@ -1,0 +1,6 @@
+{
+  "name": "LexNote — Conversor Obsidian Jurídico",
+  "description": "Converta transcrições de aulas para concursos jurídicos em notas estruturadas para Obsidian com deep linking de leis, callouts e exportação .md.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
