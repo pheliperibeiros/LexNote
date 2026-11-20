@@ -10,6 +10,7 @@ import {
   TARGET_EXAMS,
   getTodayBrDate,
 } from './lib/promptBuilder';
+import { convertTranscriptStreamClient } from './lib/geminiClient';
 import { cleanAndValidateObsidianMarkdown } from './lib/markdownProcessor';
 import { SAMPLE_TRANSCRIPT } from './lib/sampleTranscript';
 import type { HistoryEntry, NoteStats, ProcessedNoteResult } from './lib/types';
@@ -150,63 +151,20 @@ export default function App() {
     setCopied(false);
 
     try {
-      const response = await fetch('/api/convert/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: trimmed,
-          disciplina: disciplina.trim() || undefined,
-          assunto: assunto.trim() || undefined,
-          data: dataAula.trim() || undefined,
+      const finalResult = await convertTranscriptStreamClient(
+        trimmed,
+        {
+          disciplina,
+          assunto,
+          data: dataAula,
           targetExam,
           vaultLaws,
-          extraInstructions: extraInstructions.trim() || undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || `Erro HTTP ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('Fluxo de resposta indisponível no navegador.');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let accumulated = '';
-      let completedResult: ProcessedNoteResult | null = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() ?? '';
-
-        for (const rawEvent of events) {
-          const dataLine = rawEvent
-            .split('\n')
-            .find((line) => line.startsWith('data: '));
-          if (!dataLine) continue;
-
-          const payload = JSON.parse(dataLine.slice(6));
-          if (payload.type === 'chunk' && typeof payload.text === 'string') {
-            accumulated += payload.text;
-            setStreamingText(accumulated);
-          } else if (payload.type === 'done' && payload.result) {
-            completedResult = payload.result as ProcessedNoteResult;
-          } else if (payload.type === 'error') {
-            throw new Error(payload.error || 'Falha ao processar a transcrição.');
-          }
+          extraInstructions,
+        },
+        (chunk) => {
+          setStreamingText((prev) => prev + chunk);
         }
-      }
-
-      const finalResult =
-        completedResult ?? cleanAndValidateObsidianMarkdown(accumulated, vaultLaws);
+      );
 
       setOutputMarkdown(finalResult.markdown);
       setStats(finalResult.stats);
@@ -216,7 +174,7 @@ export default function App() {
       const msg =
         err instanceof Error
           ? err.message
-          : 'Erro inesperado ao comunicar com o servidor.';
+          : 'Erro inesperado ao conectar com a IA.';
       setApiError(msg);
     } finally {
       setIsConverting(false);
