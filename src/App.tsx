@@ -169,6 +169,10 @@ export default function App() {
         throw new Error(errBody.error || `Erro HTTP ${response.status}`);
       }
 
+      if (!response.headers.get('content-type')?.includes('text/event-stream')) {
+        throw new Error('O servidor não retornou o fluxo de conversão esperado. Tente novamente após atualizar a página.');
+      }
+
       if (!response.body) {
         throw new Error('Fluxo de resposta indisponível no navegador.');
       }
@@ -205,8 +209,10 @@ export default function App() {
         }
       }
 
-      const finalResult =
-        completedResult ?? cleanAndValidateObsidianMarkdown(accumulated, vaultLaws);
+      if (!completedResult) {
+        throw new Error('A conexão com o servidor foi interrompida antes de concluir a conversão. Tente novamente.');
+      }
+      const finalResult = completedResult;
 
       setOutputMarkdown(finalResult.markdown);
       setStats(finalResult.stats);
